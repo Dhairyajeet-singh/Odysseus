@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from resume_match import Importance, MockProvider, parse_jd
+from Parser import Importance, MockProvider, parse_jd
 
 SAMPLE_JD = """
 Senior Backend Engineer
