@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from Parser.schema import (Depth, Importance, Requirements, Skill,
                            SkillAssessment)
-from Scorer.scoring import score_candidate, ScoringConfig
-from Scorer.ranking import rank_candidates
+from Ranker.scoring import score_candidate, ScoringConfig
+from Ranker.ranking import rank_candidates
 
 
 REQ = Requirements(

@@ -67,11 +67,11 @@ _ALIASES: Dict[str, List[str]] = {
 def _aliases_for(name: str) -> List[str]:
     key = name.strip()
     if key in _ALIASES:
-        return _ALIASES[key]
+        return list(_ALIASES[key])
     low = key.lower()
     for canon, al in _ALIASES.items():
         if low == canon.lower() or low in al:
-            return sorted(set(al) | {canon.lower()} - {low})
+            return sorted((set(al) | {canon.lower()}) - {low})
     return []
 
 

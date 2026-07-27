@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from resume_extract import Config, Method, Verdict, extract, extract_batch, find_duplicates
-from resume_extract.pipeline import sniff_format
-from resume_extract.types import DocFormat
+from OCR import Config, Method, Verdict, extract, extract_batch, find_duplicates
+from OCR.pipeline import sniff_format
+from OCR.models import DocFormat          # was resume_extract.types
 
 FIX = Path(__file__).parent / "fixtures"
 
