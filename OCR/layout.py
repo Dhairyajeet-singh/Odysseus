@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 from typing import List, Optional, Sequence, Tuple
 
-from .types import Block, Column
+from .models import Block, Column
 
 # A block wider than this fraction of the page cannot *be* a column: in a
 # two-column layout each column occupies at most ~48% of the width. So anything

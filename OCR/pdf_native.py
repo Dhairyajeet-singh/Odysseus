@@ -19,7 +19,7 @@ from typing import List, Tuple
 
 import fitz  # PyMuPDF
 
-from .types import Block, Table
+from .models import Block, Table
 
 _BOLD_FLAG = 1 << 4  # PyMuPDF span flag bit for bold
 

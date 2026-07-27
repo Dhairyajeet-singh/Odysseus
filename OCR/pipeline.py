@@ -27,7 +27,7 @@ from typing import List, Optional, Sequence
 from . import docx_reader, pdf_native, pdf_ocr, quality
 from .layout import blocks_to_text, merge_paragraphs, order_blocks
 from .sections import assign_sections
-from .types import (Block, DocFormat, ExtractionResult, Method, PageReport,
+from .models import (Block, DocFormat, ExtractionResult, Method, PageReport,
                     QualityReport, Table, Verdict)
 
 

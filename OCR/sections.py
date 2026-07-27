@@ -17,7 +17,7 @@ import re
 import statistics
 from typing import Dict, List, Sequence
 
-from .types import Block
+from .models import Block
 
 HEADER = "header"          # name / contact block above the first real section
 OTHER = "other"

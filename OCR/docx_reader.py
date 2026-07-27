@@ -31,7 +31,7 @@ from typing import List, Tuple
 from docx import Document
 from docx.table import Table as DocxTable
 
-from .types import Block, Table
+from .models import Block, Table
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"

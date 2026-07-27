@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from typing import List
 
-from .types import QualityReport, QualitySignal, Verdict
+from .models import QualityReport, QualitySignal, Verdict
 
 # Encoding-failure artefacts: unmapped CIDs, replacement chars, private-use
 # glyphs. These appear when a font has no usable ToUnicode map -- the text layer

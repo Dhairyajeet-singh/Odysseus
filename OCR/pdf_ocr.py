@@ -28,7 +28,7 @@ import pytesseract
 from PIL import Image, ImageOps
 
 from .layout import _classify, detect_gutter
-from .types import Block, Column
+from .models import Block, Column
 
 # 3 = fully automatic with orientation/script detection (handles columns itself)
 # 4 = assume a single column of variable-sized text
