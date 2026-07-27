@@ -1,0 +1,12 @@
+# Core extraction
+PyMuPDF>=1.24        # native text layer + geometry + in-process rasterisation
+pdfplumber>=0.11     # ruled-table extraction
+python-docx>=1.1     # DOCX / OOXML
+
+# OCR path
+pytesseract>=0.3.10  # requires system `tesseract-ocr` (see README)
+Pillow>=10.0
+
+# Test fixtures only (not needed at runtime)
+reportlab>=4.0
+pytest>=8.0
