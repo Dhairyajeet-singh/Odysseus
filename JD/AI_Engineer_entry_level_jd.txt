@@ -1,0 +1,46 @@
+AI/ML Engineer (Entry Level)
+
+Location: Delhi NCR, India — hybrid
+Team: Applied AI
+Experience: 0–2 years
+
+About the role
+
+We build and ship AI systems that run in production, not in notebooks. You will
+work on computer vision and language models end to end: training them, wrapping
+them in an API, putting them on a VM, and keeping them alive when they break at
+2am. This is a role for someone early in their career who has already shipped
+something real.
+
+What you will do
+
+- Build and deploy vision and NLP models into production services
+- Wrap models behind FastAPI services and keep latency predictable
+- Own the deployment path: Docker, CI/CD, reverse proxy, TLS, cloud VMs
+- Debug model failures on real user data and fix them at the root
+- Write evaluation harnesses so we know when a change made things worse
+
+Required
+
+- Strong Python
+- PyTorch or TensorFlow, with models you have actually trained
+- Computer vision or NLP experience — detection, classification, OCR,
+  embeddings, or similar
+- FastAPI or Flask for serving models
+- Docker
+- SQL
+
+Nice to have
+
+- Azure, AWS, or GCP
+- Hugging Face Transformers
+- LangChain or similar LLM orchestration tooling
+- Retrieval-augmented generation
+- CI/CD pipelines
+- Nginx
+
+Who this is for
+
+Internships, research work, and substantial personal projects all count as
+experience. We care about what you have built and whether you can explain the
+decisions behind it.

@@ -8,3 +8,6 @@ OCR/fixtures/
 *.egg-info/
 .DS_Store
 .vscode/
+.Results/
+D:\Advanced AI Programming\Zoca\Results
+Results/

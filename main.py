@@ -35,8 +35,10 @@ Two properties worth knowing about the design:
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -54,6 +56,118 @@ from LLM import assess_resume
 from Ranker import estimate_experience, rank_candidates, score_candidate
 
 RESUME_SUFFIXES = {".pdf", ".docx", ".doc"}
+
+
+# Duplicate collapsing is optional. If this repo's rank_candidates does not
+# accept `duplicates`, everything still runs — repeat submissions just each
+# take their own slot instead of being folded into one.
+_RANK_TAKES_DUPLICATES = "duplicates" in inspect.signature(
+    rank_candidates).parameters
+
+
+def _rank(scores: List[CandidateScore], duplicates) -> List[CandidateScore]:
+    if _RANK_TAKES_DUPLICATES and duplicates:
+        return rank_candidates(scores, duplicates=duplicates)
+    return rank_candidates(scores)
+
+
+# ---------------------------------------------------------------------------
+# stored results
+
+
+RESULTS_DIR = "Stored_results"
+
+# Words that carry no signal in a filename. Dropping them is what keeps
+# "Senior Software Engineer, Data Platform (Remote)" from becoming a 50
+# character filename when "senior-sw-eng-data" says the same thing.
+_STOPWORDS = {"a", "an", "the", "and", "or", "for", "of", "to", "in", "at",
+              "with", "role", "position", "job", "opening", "remote", "hybrid",
+              "onsite", "fulltime", "full", "time", "contract", "resume", "cv"}
+
+_SHORTEN = {"senior": "sr", "junior": "jr", "engineer": "eng",
+            "engineering": "eng", "developer": "dev", "development": "dev",
+            "manager": "mgr", "management": "mgt", "software": "sw",
+            "machine": "ml", "learning": "", "scientist": "sci",
+            "analyst": "anlt", "architect": "arch", "specialist": "spec",
+            "administrator": "admin", "associate": "assoc"}
+
+
+def slugify(text: str, max_len: int = 22) -> str:
+    """Filesystem-safe, short, still readable.
+
+    Truncation happens on word boundaries rather than mid-word, so a clipped
+    name still reads as words. Windows path limits and the habit of emailing
+    these files around are why this is aggressive about length.
+    """
+    words = re.sub(r"[^a-z0-9]+", " ", text.lower()).split()
+    kept = []
+    for w in words:
+        if w in _STOPWORDS:
+            continue
+        w = _SHORTEN.get(w, w)
+        if w:
+            kept.append(w)
+    if not kept:
+        kept = [w for w in words if w] or ["untitled"]
+
+    slug = "-".join(kept)
+    if len(slug) <= max_len:
+        return slug
+    clipped = slug[:max_len].rsplit("-", 1)[0]
+    return clipped or slug[:max_len]
+
+
+def store_results(req: Requirements, ranked: Sequence[CandidateScore],
+                  failures: Sequence[tuple[str, str]], elapsed: float,
+                  directory: str = RESULTS_DIR, quiet: bool = False) -> Path:
+    """Write one JSON per candidate plus a ranking summary.
+
+    Naming is `<what the JD is about>_<resume>_eval.json`, e.g.
+    `sr-data-eng_priya-r_eval.json`, so a folder of these is scannable without
+    opening any of them.
+    """
+    out_dir = ROOT / directory if not Path(directory).is_absolute() \
+        else Path(directory)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    jd_slug = slugify(req.role_title or _first_line(req.raw_text) or "role")
+
+    used: set = set()
+    written: List[Path] = []
+    for c in ranked:
+        name_slug = slugify(Path(c.path).stem, max_len=20)
+        stem = f"{jd_slug}_{name_slug}_eval"
+        # Two resumes can share a filename across subfolders; keep both.
+        candidate, n = stem, 2
+        while candidate in used:
+            candidate = f"{stem}-{n}"
+            n += 1
+        used.add(candidate)
+
+        target = out_dir / f"{candidate}.json"
+        target.write_text(json.dumps(c.to_dict(), indent=2), encoding="utf-8")
+        written.append(target)
+
+    summary = out_dir / f"{jd_slug}_ranking.json"
+    summary.write_text(
+        json.dumps(to_json(req, ranked, failures, elapsed), indent=2),
+        encoding="utf-8")
+
+    if not quiet:
+        print(f"\nstored {len(written)} evaluation(s) in {out_dir.name}/")
+        for t in written[:5]:
+            print(f"  {t.name}")
+        if len(written) > 5:
+            print(f"  ... and {len(written) - 5} more")
+        print(f"  {summary.name}   (full ranking)")
+    return out_dir
+
+
+def _first_line(text: str) -> str:
+    for line in (text or "").splitlines():
+        if line.strip():
+            return line.strip()[:60]
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +350,12 @@ def screen(jd_text: str, resumes: Sequence[Path], provider, embedder,
             duplicates = find_duplicates(extractions)
         except Exception:
             duplicates = []
+    if duplicates and not _RANK_TAKES_DUPLICATES and not quiet:
+        print(f"note: {len(duplicates)} duplicate pair(s) detected but this "
+              f"build of Ranker cannot fold them — each will be ranked "
+              f"separately")
 
-    ranked = rank_candidates(scores, duplicates=duplicates)
+    ranked = _rank(scores, duplicates)
     return req, ranked, failures, time.perf_counter() - t0
 
 
@@ -284,8 +402,9 @@ def show(req: Requirements, ranked: Sequence[CandidateScore],
         print(f"\n{BAR}")
         print(f"FOLDED IN — {len(folded)} duplicate submission(s)")
         for c in folded:
-            print(f"  {Path(c.path).name}  ->  same as "
-                  f"{Path(c.duplicate_of).name}")
+            rep = getattr(c, "duplicate_of", None)
+            same = f"  ->  same as {Path(rep).name}" if rep else ""
+            print(f"  {Path(c.path).name}{same}")
 
     if failures:
         print(f"\n{BAR}")
@@ -321,7 +440,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="job description: a .txt/.md/.pdf path, or the text itself")
     ap.add_argument("--resumes", required=True,
                     help="a folder of resumes, or a single PDF/DOCX")
-    ap.add_argument("--out", help="write the full result to this JSON file")
+    ap.add_argument("--out", help="also write the full result to this JSON file")
+    ap.add_argument("--results-dir", dest="results_dir", default=RESULTS_DIR,
+                    help=f"folder for per-candidate results (default {RESULTS_DIR})")
+    ap.add_argument("--no-store", action="store_true",
+                    help="do not write the Stored_results folder")
     ap.add_argument("--top", type=int, help="only print the top N candidates")
     ap.add_argument("--workers", type=int, default=8,
                     help="resumes screened in parallel (default 8)")
@@ -379,6 +502,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         keep = [c for c in ranked if c.rank is not None][:args.top]
         shown = keep + [c for c in ranked if c.rank is None]
     show(req, shown, failures, elapsed, detail=args.detail)
+
+    if not args.no_store:
+        store_results(req, ranked, failures, elapsed,
+                      directory=args.results_dir, quiet=args.quiet)
 
     if args.out:
         Path(args.out).write_text(
