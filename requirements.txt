@@ -27,6 +27,11 @@ openai>=1.30           # OpenAIProvider and OpenAIEmbedder — the default backe
 # --- Spreadsheet export ----------------------------------------------------
 openpyxl>=3.1         # Excel/export_excel.py — one sheet per job description
 
+# --- Web backend -----------------------------------------------------------
+fastapi>=0.115        # backend/app.py
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # multipart file upload — FastAPI needs it explicitly
+
 # --- Tests -----------------------------------------------------------------
 pytest>=8.0
 reportlab>=4.0         # generates the synthetic fixtures; not used at runtime

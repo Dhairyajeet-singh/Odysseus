@@ -11,3 +11,11 @@ OCR/fixtures/
 .Results/
 D:\Advanced AI Programming\Zoca\Results
 Results/
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
