@@ -1,0 +1,56 @@
+{
+  "_comment": [
+    "Ground truth for the synthetic evaluation set, graded 0-4 against",
+    "JD/ai_ml_engineer_jd.txt. Grades are relevance tiers, not scores: the",
+    "pipeline is judged on whether it ORDERS candidates correctly, never on",
+    "whether it reproduces a particular number.",
+    "",
+    "  4 perfect  every required skill demonstrated, most preferred, right level",
+    "  3 close    same shape as the target profile, one or two real gaps",
+    "  2 good     strong engineer missing a meaningful chunk of the requirements",
+    "  1 decent   adjacent skills, partial overlap",
+    "  0 poor     different field entirely",
+    "",
+    "Labels were assigned when the resumes were written, before any run, so",
+    "they are not fitted to the pipeline's output.",
+    "",
+    "Candidates not listed here are scored by the pipeline but excluded from",
+    "the metrics and reported separately -- a real resume has no ground truth."
+  ],
+
+  "jd": "JD/ai_ml_engineer_jd.txt",
+
+  "grades": {
+    "aarav_mehta":     4,
+    "isha_krishnan":   4,
+
+    "rohan_verma":     3,
+    "ananya_sharma":   3,
+    "karthik_nair":    3,
+
+    "priya_deshpande": 2,
+    "vikram_rao":      2,
+    "neha_gupta":      2,
+    "siddharth_iyer":  2,
+    "meera_joshi":     2,
+
+    "aditya_kulkarni": 1,
+    "sneha_reddy":     1,
+    "rahul_bose":      1,
+    "tanvi_shah":      1,
+    "arjun_menon":     1,
+
+    "kavita_nambiar":  0,
+    "suresh_pillai":   0,
+    "deepa_rangan":    0,
+    "manish_chauhan":  0,
+    "farhan_qureshi":  0
+  },
+
+  "thresholds": {
+    "spearman":   0.80,
+    "ndcg_at_5":  0.85,
+    "ndcg_all":   0.90,
+    "separation": 5.0
+  }
+}
