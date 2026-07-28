@@ -38,6 +38,22 @@ class Skill:
     importance: Importance = Importance.MANDATORY
     aliases: List[str] = field(default_factory=list)
     category: Optional[str] = None  # "language" | "cloud" | "framework" | ...
+    # Distinct technologies, any ONE of which satisfies this requirement:
+    # "PyTorch or TensorFlow" is one hurdle, not two. Aliases are different --
+    # those are other names for the SAME thing ("JS" for JavaScript). Without
+    # this, an either/or clause becomes two separate mandatory skills and a
+    # candidate who meets it via the second one is marked as missing the first.
+    alternatives: List[str] = field(default_factory=list)
+
+    @property
+    def display(self) -> str:
+        """How to show the requirement to a human: 'PyTorch or TensorFlow'."""
+        return " or ".join([self.name] + self.alternatives)
+
+    @property
+    def search_terms(self) -> List[str]:
+        """Everything that should retrieve evidence for this requirement."""
+        return [self.name] + self.aliases + self.alternatives
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -196,6 +212,12 @@ class CandidateScore:
     assessments: List[SkillAssessment] = field(default_factory=list)
     extraction_confidence: float = 1.0   # carried from stage 1
     experience: Optional[ExperienceEstimate] = None
+    # Duplicate handling. `duplicate_of` is set on a suppressed copy and points
+    # at the representative that was ranked in its place; `duplicates` is the
+    # mirror, listing the copies folded into this candidate. Exactly one of the
+    # two is ever non-empty.
+    duplicate_of: Optional[str] = None
+    duplicates: List[str] = field(default_factory=list)
     flags: List[str] = field(default_factory=list)
 
     @property
@@ -226,5 +248,7 @@ class CandidateScore:
             "assessments": [a.to_dict() for a in self.assessments],
             "extraction_confidence": round(self.extraction_confidence, 3),
             "experience": self.experience.to_dict() if self.experience else None,
+            "duplicate_of": self.duplicate_of,
+            "duplicates": list(self.duplicates),
             "flags": self.flags,
         }

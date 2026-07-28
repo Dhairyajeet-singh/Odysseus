@@ -29,6 +29,12 @@ Rules:
 - Separate skills into "mandatory" (required, must-have, essential) and \
 "preferred" (nice-to-have, bonus, a plus, desirable).
 - Use canonical skill names: "JavaScript" not "JS", "PostgreSQL" not "postgres".
+- When the JD offers a choice -- "PyTorch or TensorFlow", "AWS/Azure/GCP", \
+"FastAPI or Flask" -- emit ONE skill with the first option as "name" and the \
+rest in "alternatives". Never split a choice into separate skills: that would \
+force a candidate to have all of them.
+- "alternatives" is for genuinely different technologies that each satisfy the \
+requirement. It is NOT for other names of the same thing.
 - Only include concrete, checkable skills/technologies/qualifications. Do not \
 invent requirements that are not stated.
 - If seniority implies years of experience, extract min_years_experience as a \
@@ -37,8 +43,10 @@ number; otherwise null.
 Return ONLY a JSON object with this exact shape:
 {
   "role_title": string,
-  "mandatory_skills": [{"name": string, "category": string|null}],
-  "preferred_skills": [{"name": string, "category": string|null}],
+  "mandatory_skills": [{"name": string, "alternatives": [string], \
+"category": string|null}],
+  "preferred_skills": [{"name": string, "alternatives": [string], \
+"category": string|null}],
   "min_years_experience": number|null,
   "education": string|null,
   "responsibilities": [string]
@@ -81,18 +89,35 @@ def _skills(raw: Any, importance: Importance, warnings: List[str]) -> List[Skill
         return out
     seen = set()
     for item in raw:
+        alts: List[str] = []
         if isinstance(item, str):
             name, category = item.strip(), None
         elif isinstance(item, dict) and item.get("name"):
             name, category = str(item["name"]).strip(), item.get("category")
+            raw_alts = item.get("alternatives") or []
+            if isinstance(raw_alts, list):
+                alts = [str(a).strip() for a in raw_alts
+                        if str(a).strip() and str(a).strip().lower() != name.lower()]
         else:
             warnings.append(f"dropped malformed skill entry: {item!r}")
             continue
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
+        seen.update(a.lower() for a in alts)   # an alternative is not its own skill
+        # Alternatives need their aliases expanded too, or a requirement written
+        # as "Computer vision or Natural Language Processing" fails to match a
+        # resume that only ever writes "NLP".
+        alias_pool = list(_aliases_for(name))
+        for alt in alts:
+            alias_pool.append(alt)
+            alias_pool.extend(_aliases_for(alt))
+        low_name = name.lower()
+        aliases = sorted({a.lower() for a in alias_pool if a and a.lower() != low_name})
+
         out.append(Skill(name=name, importance=importance,
-                         aliases=_aliases_for(name), category=category))
+                         aliases=aliases, category=category,
+                         alternatives=alts))
     return out
 
 

@@ -231,7 +231,8 @@ class HybridRetriever:
     def _query_text(self, skill: Skill) -> str:
         # Aliases go into the query so "AWS" retrieves against a skill whose
         # canonical name is "Amazon Web Services".
-        return " ".join([skill.name] + skill.aliases)
+        return " ".join(getattr(skill, "search_terms", None)
+                        or [skill.name] + skill.aliases)
 
     def retrieve(self, skill: Skill, top_k: int = 3,
                  min_score: float = 0.0) -> SkillEvidence:

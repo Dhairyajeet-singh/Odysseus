@@ -51,6 +51,12 @@ assume skills that are not evidenced.
 - Quote the exact text from the excerpts that supports your judgement. If depth \
 is "none", use an empty string for evidence.
 - Do not reward keyword stuffing: a bare list entry is "mentioned", never "used".
+- Some skills list accepted alternatives, e.g. "PyTorch (or: TensorFlow)". \
+Evidence for ANY of them satisfies that skill -- judge the depth of the \
+strongest one found, and quote from it. Do not mark the skill absent because \
+the candidate used the alternative rather than the first-named option.
+- For "skill", return ONLY the first name listed, dropping any "(or: ...)" \
+suffix. For "PyTorch (or: TensorFlow)" return exactly "PyTorch".
 
 Return ONLY a JSON object of this exact shape:
 {
@@ -90,6 +96,17 @@ def _is_grounded(evidence: str, haystack_norm: str) -> bool:
     return window in haystack_norm
 
 
+def _skill_key(name: str) -> str:
+    """Normalise a skill name for matching.
+
+    Drops parentheticals and every non-alphanumeric character, so
+    "PyTorch (or: TensorFlow)", "pytorch", and "Py-Torch" all collapse to the
+    same key. `+` and `#` survive because C++ and C# need them.
+    """
+    name = re.sub(r"\(.*?\)", " ", name)
+    return re.sub(r"[^a-z0-9+#]+", "", name.lower())
+
+
 def _build_user_prompt(req: Requirements, evidence: List[SkillEvidence]) -> str:
     lines: List[str] = []
     if req.role_title:
@@ -98,8 +115,15 @@ def _build_user_prompt(req: Requirements, evidence: List[SkillEvidence]) -> str:
         lines.append(f"Experience expected: {req.min_years_experience}+ years")
     lines.append("")
     lines.append("Skills to assess:")
+    # The line keeps the canonical name first so the model echoes it back
+    # unchanged and the mapping below still matches; alternatives ride in a
+    # suffix the model is told to strip.
+    alts_by_skill = {sk.name: sk.alternatives for sk in req.all_skills
+                     if getattr(sk, "alternatives", None)}
     for e in evidence:
-        lines.append(f"- {e.skill} ({e.importance.value})")
+        alts = alts_by_skill.get(e.skill)
+        suffix = f" (or: {', '.join(alts)})" if alts else ""
+        lines.append(f"- {e.skill}{suffix} ({e.importance.value})")
     lines.append("")
     lines.append("Relevant excerpts from the candidate's resume "
                  "(each tagged with the section it came from):")
@@ -152,11 +176,31 @@ def assess_resume(requirements: Requirements, evidence: List[SkillEvidence],
     by_skill: Dict[str, dict] = {}
     for item in raw:
         if isinstance(item, dict) and item.get("skill"):
-            by_skill[str(item["skill"]).strip().lower()] = item
+            by_skill[_skill_key(str(item["skill"]))] = item
+
+    # Every spelling of a skill the model might plausibly answer under. The
+    # model is asked for the canonical name, but prompt compliance is not
+    # something to stake a candidate's score on: when a requirement is shown as
+    # "PyTorch (or: TensorFlow)" models variously reply "PyTorch",
+    # "TensorFlow", "PyTorch or TensorFlow", or the whole listed string. All of
+    # them mean the same thing and none of them should read as an omission.
+    accept: Dict[str, List[str]] = {}
+    for sk in requirements.all_skills:
+        alts = list(getattr(sk, "alternatives", []) or [])
+        forms = [sk.name, *alts]
+        if alts:
+            forms += [" or ".join([sk.name] + alts),
+                      "/".join([sk.name] + alts),
+                      f"{sk.name} (or: {', '.join(alts)})"]
+        accept[sk.name] = [_skill_key(f) for f in forms]
 
     out: List[SkillAssessment] = []
     for e in evidence:  # iterate the JD's skills, so none can be dropped
-        item = by_skill.get(e.skill.strip().lower())
+        item = None
+        for key in accept.get(e.skill, [_skill_key(e.skill)]):
+            item = by_skill.get(key)
+            if item is not None:
+                break
         if item is None:
             out.append(SkillAssessment(skill=e.skill, importance=e.importance))
             warnings.append(f"model omitted '{e.skill}' — treated as not found")
