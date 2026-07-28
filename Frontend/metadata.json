@@ -1,0 +1,6 @@
+{
+  "name": "Aether Intelligence - AI Resume Ranking",
+  "description": "An AI-powered resume parsing and candidate ranking platform that matches job descriptions with candidate profiles using semantic evaluation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
