@@ -55,6 +55,16 @@ from Retriever import HybridRetriever, get_embedder
 from LLM import assess_resume
 from Ranker import estimate_experience, rank_candidates, score_candidate
 
+# Excel export is optional: a missing openpyxl, or a moved Excel/ folder,
+# should cost you the spreadsheet, not the screening run that just spent
+# money on API calls.
+try:
+    from Excel import collect as collect_rankings, export as export_excel
+    EXCEL_ERROR = ""
+except Exception as _exc:                       # noqa: BLE001
+    collect_rankings = export_excel = None      # type: ignore[assignment]
+    EXCEL_ERROR = f"{type(_exc).__name__}: {_exc}"
+
 RESUME_SUFFIXES = {".pdf", ".docx", ".doc"}
 
 
@@ -75,7 +85,9 @@ def _rank(scores: List[CandidateScore], duplicates) -> List[CandidateScore]:
 # stored results
 
 
-RESULTS_DIR = "Stored_results"
+RESULTS_DIR = "Results"
+EXCEL_DIR = "Excel/Excel_Outputs"
+EXCEL_NAME = "rankings.xlsx"
 
 # Words that carry no signal in a filename. Dropping them is what keeps
 # "Senior Software Engineer, Data Platform (Remote)" from becoming a 50
@@ -161,6 +173,53 @@ def store_results(req: Requirements, ranked: Sequence[CandidateScore],
             print(f"  ... and {len(written) - 5} more")
         print(f"  {summary.name}   (full ranking)")
     return out_dir
+
+
+def store_excel(results_dir: str, excel_dir: str, filename: str,
+                quiet: bool = False) -> Optional[Path]:
+    """Rebuild the workbook from every ranking in `results_dir`.
+
+    Every JD is re-exported, not just the run that produced it: `main.py`
+    screens one JD at a time, so a hiring round spread over five runs leaves
+    five JSON files, and the useful artefact is one workbook with five sheets.
+    Re-reading them all is cheap -- no API calls -- and keeps the spreadsheet
+    a true view of the results folder rather than of the last command typed.
+    """
+    if export_excel is None:
+        if not quiet:
+            print(f"\nskipped Excel export — {EXCEL_ERROR}")
+            print("  pip install openpyxl, or run with --no-excel to silence this")
+        return None
+
+    src = ROOT / results_dir if not Path(results_dir).is_absolute() \
+        else Path(results_dir)
+    try:
+        rankings = collect_rankings([str(src)])
+    except SystemExit:                          # nothing to export yet
+        return None
+
+    out_dir = ROOT / excel_dir if not Path(excel_dir).is_absolute() \
+        else Path(excel_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / filename
+
+    try:
+        n_sheets, n_rows = export_excel(rankings, target)
+    except PermissionError:
+        # The commonest failure by far: the workbook is open in Excel.
+        if not quiet:
+            print(f"\ncould not write {target.name} — it is open in Excel. "
+                  f"Close it and re-run, or use --excel-name to write elsewhere.")
+        return None
+    except Exception as exc:                    # noqa: BLE001
+        if not quiet:
+            print(f"\nExcel export failed — {type(exc).__name__}: {exc}")
+        return None
+
+    if not quiet:
+        print(f"\nspreadsheet: {excel_dir}/{filename}"
+              f"  ({n_sheets} JD sheet(s), {n_rows} row(s))")
+    return target
 
 
 def _first_line(text: str) -> str:
@@ -444,7 +503,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--results-dir", dest="results_dir", default=RESULTS_DIR,
                     help=f"folder for per-candidate results (default {RESULTS_DIR})")
     ap.add_argument("--no-store", action="store_true",
-                    help="do not write the Stored_results folder")
+                    help=f"do not write the {RESULTS_DIR} folder")
+    ap.add_argument("--excel-dir", dest="excel_dir", default=EXCEL_DIR,
+                    help=f"folder for the spreadsheet (default {EXCEL_DIR})")
+    ap.add_argument("--excel-name", dest="excel_name", default=EXCEL_NAME,
+                    help=f"spreadsheet filename (default {EXCEL_NAME})")
+    ap.add_argument("--no-excel", action="store_true",
+                    help="skip the spreadsheet export")
     ap.add_argument("--top", type=int, help="only print the top N candidates")
     ap.add_argument("--workers", type=int, default=8,
                     help="resumes screened in parallel (default 8)")
@@ -506,6 +571,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not args.no_store:
         store_results(req, ranked, failures, elapsed,
                       directory=args.results_dir, quiet=args.quiet)
+        if not args.no_excel:
+            store_excel(args.results_dir, args.excel_dir, args.excel_name,
+                        quiet=args.quiet)
 
     if args.out:
         Path(args.out).write_text(
