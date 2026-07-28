@@ -27,6 +27,8 @@ interface ResultsViewProps {
   jobDescription: JobDescription;
   summaryData: AnalysisSummaryData;
   onResetUpload: () => void;
+  /** Fetches the workbook from the backend. */
+  onExportExcel: () => void;
 }
 
 export const ResultsView: React.FC<ResultsViewProps> = ({
@@ -34,6 +36,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   jobDescription,
   summaryData,
   onResetUpload,
+  onExportExcel,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -52,33 +55,12 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   // Top candidate
   const topCandidate = candidates[0];
 
-  // Download Excel / CSV Report
-  const handleDownloadExcel = () => {
-    const headers = ["Rank", "Name", "Current Role", "Match Score (%)", "Status", "Experience", "Skills", "Key Strengths", "Gaps", "File Name"];
-    const rows = candidates.map((c, index) => [
-      index + 1,
-      `"${c.name}"`,
-      `"${c.currentRole}"`,
-      c.matchScore,
-      `"${c.status}"`,
-      `"${c.experienceYears}"`,
-      `"${c.skills.join(', ')}"`,
-      `"${c.strengths.join(' | ')}"`,
-      `"${c.gaps.join(' | ')}"`,
-      `"${c.fileName}"`
-    ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Candidate_Rankings_${jobDescription.title.replace(/\s+/g, "_")}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Excel comes from the backend, not from this component. The browser-built
+  // CSV that used to live here had the wrong columns, dropped the score
+  // breakdown and the explanation entirely, and mangled every em-dash because
+  // a data: URI CSV carries no BOM for Excel to read. The server writes a real
+  // .xlsx with formatting, filters, and one sheet per job description.
+  const handleDownloadExcel = () => onExportExcel();
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
@@ -161,7 +143,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           <p className="text-2xl font-black text-amber-400">
             {summaryData.processingTimeSec}s
           </p>
-          <p className="text-[11px] text-slate-400">Gemini 3.6 Flash Engine</p>
+          <p className="text-[11px] text-slate-400">Odysseus Engine</p>
         </div>
 
       </div>
@@ -316,7 +298,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               {summaryData.aiRecommendation}
             </p>
             <div className="pt-2 border-t border-purple-500/20 flex items-center justify-between text-[11px] text-slate-400">
-              <span>Verified by Gemini 3.6</span>
+              <span>Evidence-grounded score</span>
               <span className="text-purple-400 font-medium">Confidence: 99.2%</span>
             </div>
           </div>

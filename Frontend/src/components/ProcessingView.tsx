@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ProcessingLog } from '../types';
 import { Cpu, Terminal, CheckCircle2, ShieldAlert } from 'lucide-react';
 
@@ -6,27 +6,43 @@ interface ProcessingViewProps {
   logs: ProcessingLog[];
   onCancel: () => void;
   candidateCount: number;
+  /** Resumes finished so far, straight from the backend. */
+  completed: number;
 }
 
 export const ProcessingView: React.FC<ProcessingViewProps> = ({
   logs,
   onCancel,
   candidateCount,
+  completed,
 }) => {
-  const [progress, setProgress] = useState(15);
-  const [currentNode, setCurrentNode] = useState(38);
+  // Progress is now measured, not animated. It was a timer that climbed to 95%
+  // in a couple of seconds and sat there — which told the user nothing, and
+  // actively misled them on a long batch.
+  //
+  // The JD is parsed once before any resume is read, so that phase is given a
+  // small fixed share and the remaining 90% tracks completed/total exactly.
+  const JD_SHARE = 10;
+  const progress = candidateCount > 0
+    ? Math.min(100, JD_SHARE + Math.round((completed / candidateCount) * (100 - JD_SHARE)))
+    : JD_SHARE;
 
+  // Rolling throughput, so the third stat means something instead of counting
+  // imaginary "semantic nodes".
+  const startedAt = useRef<number>(Date.now());
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) return 95;
-        return prev + Math.floor(Math.random() * 15) + 5;
-      });
-      setCurrentNode((prev) => prev + Math.floor(Math.random() * 18) + 10);
-    }, 400);
-
-    return () => clearInterval(timer);
+    const t = setInterval(() => setElapsed((Date.now() - startedAt.current) / 1000), 500);
+    return () => clearInterval(t);
   }, []);
+  const perMin = elapsed > 2 && completed > 0
+    ? Math.round((completed / elapsed) * 60) : 0;
+
+  // Keep the newest log line in view without the user scrolling.
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+  }, [logs.length]);
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -70,7 +86,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
         <div className="space-y-2">
           <h2 className="text-2xl font-extrabold text-white">Ranking Candidates...</h2>
           <p className="text-xs text-slate-300 max-w-md mx-auto">
-            Gemini AI is cross-referencing skill matrices, experience years, and leadership context with role requirements.
+            Reading each resume, retrieving the evidence for every required skill, and scoring what it finds.
           </p>
         </div>
 
@@ -78,15 +94,15 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
         <div className="grid grid-cols-3 gap-3 border-y border-white/10 py-4 text-center">
           <div>
             <p className="text-xs text-slate-400">Resumes Processed</p>
-            <p className="text-lg font-bold text-white">{Math.min(candidateCount, Math.ceil((candidateCount * progress) / 100))} / {candidateCount}</p>
+            <p className="text-lg font-bold text-white">{completed} / {candidateCount}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Semantic Nodes</p>
-            <p className="text-lg font-bold text-blue-400">{currentNode}</p>
+            <p className="text-xs text-slate-400">Throughput</p>
+            <p className="text-lg font-bold text-blue-400">{perMin > 0 ? `${perMin}/min` : "—"}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Engine Model</p>
-            <p className="text-lg font-bold text-purple-400">Gemini 3.6</p>
+            <p className="text-xs text-slate-400">Scoring</p>
+            <p className="text-lg font-bold text-purple-400">Deterministic</p>
           </div>
         </div>
 
@@ -103,13 +119,14 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
             </span>
           </div>
 
-          <div className="h-36 rounded-2xl bg-black/60 p-4 border border-white/10 overflow-y-auto font-mono text-[11px] space-y-1.5 leading-relaxed">
+          <div ref={feedRef} className="h-36 rounded-2xl bg-black/60 p-4 border border-white/10 overflow-y-auto font-mono text-[11px] space-y-1.5 leading-relaxed">
             {logs.map((log, idx) => (
               <div key={idx} className="flex items-start gap-2">
                 <span className="text-slate-500 shrink-0">{log.timestamp}</span>
                 <span className={
                   log.type === 'success' ? 'text-emerald-400' :
                   log.type === 'warning' ? 'text-amber-400' :
+                  log.type === 'error' ? 'text-rose-400' :
                   'text-blue-300'
                 }>
                   {log.message}

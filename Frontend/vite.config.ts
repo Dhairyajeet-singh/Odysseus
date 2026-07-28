@@ -1,22 +1,28 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
-export default defineConfig(() => {
-  return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: { '@': path.resolve(__dirname, '.') },
+  },
+  server: {
+    port: 3000,
+    // Everything under /api goes to the FastAPI backend. The browser only ever
+    // talks to :3000, so there is no CORS to configure and no absolute URLs in
+    // the React code -- fetch('/api/jobs') works unchanged in production, where
+    // FastAPI serves the built frontend itself.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
       },
     },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
+  },
+  build: {
+    // FastAPI serves this directory in production (see DIST in app.py).
+    outDir: 'dist',
+  },
 });

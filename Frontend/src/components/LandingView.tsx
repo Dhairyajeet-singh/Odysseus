@@ -32,7 +32,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onStart }) => {
         {/* Release Tag Pill */}
         <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-300 backdrop-blur-md mb-8 shadow-inner shadow-blue-500/20">
           <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-          <span>Odysseus AI Engine v3.6 • Powered by Gemini</span>
+          <span>Odysseus — “of many devices”</span>
         </div>
 
         {/* Main Hero Title */}
@@ -102,7 +102,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onStart }) => {
                 <div className="relative flex h-48 w-48 sm:h-56 sm:w-56 items-center justify-center rounded-full border-2 border-blue-400/30 bg-gradient-to-br from-blue-900/60 via-indigo-950/80 to-[#051424] p-6 shadow-2xl shadow-blue-500/40">
                   <Brain className="h-28 w-28 text-blue-400 animate-pulse" />
                   <div className="absolute -bottom-2 rounded-full bg-blue-600/90 px-4 py-1 text-xs font-bold text-white shadow-lg border border-blue-300/40">
-                    Gemini 3.6 Evaluation
+                    Evidence Evaluation
                   </div>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onStart }) => {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 mb-4">
               <Zap className="h-6 w-6" />
             </div>
-            <h3 className="text-base font-bold text-white mb-2">3. Gemini AI Analysis</h3>
+            <h3 className="text-base font-bold text-white mb-2">3. Evidence Analysis</h3>
             <p className="text-xs text-slate-300 leading-relaxed">
               Our neural network performs cross-referencing of semantic skill graphs, years of experience, and leadership context.
             </p>
@@ -291,7 +291,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onStart }) => {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-8 px-4 text-center text-xs text-slate-300">
-        <p>© 2026 Odysseus / RANK.AI. Powered by Google Gemini AI. All rights reserved.</p>
+        <p>© 2026 Odysseus. Evidence-grounded candidate ranking. All rights reserved.</p>
       </footer>
 
     </div>

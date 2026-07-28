@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Candidate, JobDescription } from '../types';
-import { SAMPLE_CANDIDATES, SAMPLE_JOB_DESCRIPTION } from '../data/sampleData';
+import { SAMPLE_JOB_DESCRIPTION } from '../data/sampleData';
 import { 
   Upload, 
   FileText, 
@@ -21,14 +21,34 @@ interface UploadViewProps {
   setJobDescription: React.Dispatch<React.SetStateAction<JobDescription>>;
   candidates: Candidate[];
   setCandidates: React.Dispatch<React.SetStateAction<Candidate[]>>;
+  /** The actual uploaded files. These are what get posted to the backend --
+   *  the Candidate entries above exist only to render the queue. */
+  resumeFiles: File[];
+  setResumeFiles: React.Dispatch<React.SetStateAction<File[]>>;
   onAnalyze: () => void;
 }
+
+/** Initials avatar as a data URI, so a queued row has something to show
+ *  without fetching a photo of an unrelated person from the internet. */
+const initialsAvatar = (name: string): string => {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(w => w[0]).join('').toUpperCase() || '?';
+  const hue = Array.from(name).reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">` +
+    `<rect width="96" height="96" rx="48" fill="hsl(${hue},45%,32%)"/>` +
+    `<text x="48" y="62" font-family="Arial,sans-serif" font-size="36" ` +
+    `font-weight="600" fill="#e2e8f0" text-anchor="middle">${initials}</text></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+};
 
 export const UploadView: React.FC<UploadViewProps> = ({
   jobDescription,
   setJobDescription,
   candidates,
   setCandidates,
+  resumeFiles,
+  setResumeFiles,
   onAnalyze,
 }) => {
   const [jdText, setJdText] = useState<string>(jobDescription.requirementsText);
@@ -38,47 +58,72 @@ export const UploadView: React.FC<UploadViewProps> = ({
   const [newCandidateName, setNewCandidateName] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Handle loading sample data
+  // Loads the sample JOB DESCRIPTION only. The sample candidates cannot be
+  // loaded any more: there are no files behind them, and the backend screens
+  // real documents rather than the placeholder text they carried.
   const handleLoadSample = () => {
     setJobDescription(SAMPLE_JOB_DESCRIPTION);
     setJdTitle(SAMPLE_JOB_DESCRIPTION.title);
     setJdText(SAMPLE_JOB_DESCRIPTION.requirementsText);
-    setCandidates(SAMPLE_CANDIDATES);
   };
 
-  // Handle uploading custom candidate file
+  // Keep the real File objects. Everything the queue displays is derived from
+  // the filename and is explicitly provisional -- no invented skills, no
+  // invented score. The backend reads the actual document and fills these in.
   const handleCandidateFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      const newCandList: Candidate[] = files.map((file: File, idx: number) => {
-        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
-        return {
-          id: `cand-upload-${Date.now()}-${idx}`,
-          name: cleanName || `Candidate ${candidates.length + idx + 1}`,
-          currentRole: 'Software Engineer',
-          matchScore: 80,
-          skills: ['REACT', 'TYPESCRIPT', 'NODE', 'ENGINEERING'],
-          experienceYears: '6 Yrs',
-          status: 'STRONG',
-          summary: `Uploaded resume document (${file.name}). Pending AI deep analysis.`,
-          strengths: ['Resume uploaded and parsed successfully'],
-          gaps: ['Pending AI cross-evaluation'],
-          fileName: file.name,
-          avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`
-        };
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const picked = Array.from(e.target.files).filter(f =>
+      /\.(pdf|docx?|DOCX?|PDF)$/.test(f.name));
+
+    const alreadyQueued = new Set(resumeFiles.map(f => `${f.name}:${f.size}`));
+    const fresh = picked.filter(f => !alreadyQueued.has(`${f.name}:${f.size}`));
+
+    const stubs: Candidate[] = fresh.map((file, idx) => {
+      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ');
+      return {
+        id: `file-${file.name}-${file.size}-${idx}`,
+        name: cleanName || file.name,
+        currentRole: 'Queued',
+        matchScore: 0,
+        skills: [],
+        experienceYears: '—',
+        status: 'POTENTIAL',
+        summary: 'Queued. Not yet screened.',
+        strengths: [],
+        gaps: [],
+        fileName: file.name,
+        avatarUrl: initialsAvatar(cleanName || file.name),
+      };
+    });
+
+    setResumeFiles(prev => [...prev, ...fresh]);
+    setCandidates(prev => [...prev, ...stubs]);
+    e.target.value = '';   // so picking the same file again still fires onChange
+  };
+
+  // Removing a row must drop the underlying File too, or the backend would
+  // still receive a resume the user thought they had deleted.
+  const handleDeleteCandidate = (id: string) => {
+    const target = candidates.find(c => c.id === id);
+    setCandidates(prev => prev.filter(c => c.id !== id));
+    if (target) {
+      setResumeFiles(prev => {
+        const at = prev.findIndex(f => f.name === target.fileName);
+        return at === -1 ? prev : prev.filter((_, i) => i !== at);
       });
-      setCandidates(prev => [...prev, ...newCandList]);
     }
   };
 
-  // Handle deleting candidate
-  const handleDeleteCandidate = (id: string) => {
-    setCandidates(prev => prev.filter(c => c.id !== id));
-  };
-
-  // Handle adding custom manual candidate
+  // A candidate with no document behind it cannot be screened, so this path is
+  // closed rather than left to fail later with a confusing error.
   const handleAddManualCandidate = () => {
     if (!newCandidateName.trim()) return;
+    alert('Add the candidate\u2019s resume file instead \u2014 screening reads the '
+        + 'actual document, so a name on its own cannot be evaluated.');
+    setNewCandidateName('');
+    setShowAddModal(false);
+    return;
     const newCand: Candidate = {
       id: `cand-manual-${Date.now()}`,
       name: newCandidateName,
@@ -119,7 +164,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
             Upload Workspace
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Provide the target job description and upload candidate resumes to trigger Gemini AI ranking.
+            Provide the target job description and upload candidate resumes to run the screening pipeline.
           </p>
         </div>
 
@@ -129,7 +174,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
             className="flex items-center gap-2 rounded-xl bg-blue-500/20 px-4 py-2 text-xs font-semibold text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition-all shadow-sm"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            <span>Load Sample 6-Candidate Batch</span>
+            <span>Load Sample Job Description</span>
           </button>
         </div>
       </div>
@@ -189,7 +234,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
                 </span>
                 <h2 className="text-lg font-bold text-white">Candidate Resumes Batch</h2>
               </div>
-              <span className="text-xs text-slate-400">{candidates.length} Files Ready</span>
+              <span className="text-xs text-slate-400">{resumeFiles.length} Files Ready</span>
             </div>
 
             {/* Dropzone area */}
@@ -290,7 +335,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">Analysis Summary</h3>
-                <p className="text-[11px] text-slate-400">Gemini AI Pipeline</p>
+                <p className="text-[11px] text-slate-400">Odysseus Pipeline</p>
               </div>
             </div>
 
@@ -356,7 +401,7 @@ export const UploadView: React.FC<UploadViewProps> = ({
             </button>
 
             <p className="text-[10px] text-center text-slate-300 leading-relaxed">
-              Resumes are processed using server-side Gemini 3.6 AI without storing personal data.
+              Resumes are processed server-side and discarded after the run, without storing personal data.
             </p>
 
           </div>

@@ -29,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, candi
                 ODYSSEUS
               </span>
               <span className="rounded-md bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-blue-400 border border-blue-500/30">
-                RANK.AI
+                AI RANKER
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">Precision Resume Parsing Engine</p>
@@ -87,7 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentScreen, onNavigate, candi
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            Gemini 3.6 Active
+            Engine Ready
           </div>
 
           <button

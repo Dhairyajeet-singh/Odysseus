@@ -1,6 +1,6 @@
 """FastAPI backend for Odysseus.
 
-    uvicorn backend.app:app --reload --port 8000
+    uvicorn app:app --reload --port 8000
 
 Endpoints
 ---------
@@ -26,7 +26,7 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
@@ -237,7 +237,7 @@ def _as_ranking_row(c: dict) -> dict:
         "components": c.get("components", []), "flags": c.get("flags", []),
         "extraction_confidence": c.get("extractionConfidence", 1.0),
         "duplicate_of": c.get("duplicateOf"), "duplicates": [],
-        "assessments": [],
+        "assessments": c.get("assessments", []),
         "experience": {"years": None} if c["experienceYears"] == "Not stated"
         else {"years": float(c["experienceYears"].split()[0]),
               "method": "date-ranges", "evidence": []},

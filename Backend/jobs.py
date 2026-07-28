@@ -240,6 +240,12 @@ def to_frontend(c: CandidateScore, sections: Dict[str, str]) -> Dict[str, Any]:
                        for k in c.components],
         "flags": c.flags,
         "extractionConfidence": round(c.extraction_confidence, 3),
+        # Carried so the spreadsheet's Assessment column can show the depth
+        # judgement and the quote behind every skill.
+        "assessments": [{"skill": a.skill, "importance": a.importance.value,
+                         "depth": a.depth.value, "evidence": a.evidence,
+                         "where": a.where}
+                        for a in c.assessments],
         "duplicateOf": c.duplicate_of if hasattr(c, "duplicate_of") else None,
     }
 
