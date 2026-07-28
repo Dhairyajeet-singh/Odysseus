@@ -180,7 +180,7 @@ def test_batch_is_parallel_and_total_order_stable():
 
 
 def test_cli_help_works_without_any_document():
-    out = subprocess.run([sys.executable, "-m", "resume_extract.cli", "--help"],
+    out = subprocess.run([sys.executable, "-m", "OCR.cli", "--help"],
                          capture_output=True, text=True,
                          cwd=str(Path(__file__).resolve().parents[1]))
     assert out.returncode == 0 and "resume-extract" in out.stdout

@@ -30,16 +30,48 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from Parser.schema import (CandidateScore, Depth, DEPTH_WEIGHT, Importance,
-                           Requirements, ScoreComponent, SkillAssessment)
+from Parser.schema import (CandidateScore, Depth, DEPTH_WEIGHT, ExperienceEstimate,
+                           Importance, Requirements, ScoreComponent,
+                           SkillAssessment)
+
+
+def _experience_bucket(required: float, est: ExperienceEstimate, weight: float,
+                       tolerance: float) -> tuple[float, float, str]:
+    """Return (earned, possible, detail) for the experience requirement.
+
+    Credit is linear up to the requirement and flat above it: five years of
+    Python does not make someone better than four when the job asked for three,
+    and paying for surplus years would just reward job-hopping seniority over
+    demonstrated skill.
+    """
+    years = est.years
+    if years is None:
+        return 0.0, 0.0, "could not be determined from the resume"
+
+    if years + tolerance >= required:
+        credit, note = 1.0, f"{years:g} years, meets the {required:g}-year minimum"
+    else:
+        credit = max(0.0, years / required) if required > 0 else 1.0
+        note = f"{years:g} of {required:g} years required"
+
+    if est.method == "claimed":
+        note += " (self-reported, no dated roles to verify against)"
+
+    return round(credit * weight, 2), round(weight, 2), note
 
 
 @dataclass
 class ScoringConfig:
     w_mandatory: float = 70.0     # points available from required skills
     w_preferred: float = 30.0     # points available from preferred skills
+    w_experience: float = 15.0    # carved out ONLY when the JD states a minimum
     low_extraction_conf: float = 0.6   # below this -> flag for review
     low_llm_conf: float = 0.45         # per-skill; below this -> note
+    # Year-only ranges ("2021 - 2024") are precise to about +/- 6 months, and
+    # two of them compound. A hard cutoff at the JD's stated minimum would turn
+    # that parsing noise into a scoring cliff, so anyone within tolerance of the
+    # requirement is treated as meeting it.
+    experience_tolerance: float = 0.5  # years
     demonstrated = (Depth.USED, Depth.STRONG)   # counts as "actually shown"
 
 
@@ -62,12 +94,28 @@ def score_candidate(requirements: Requirements,
                     assessments: List[SkillAssessment],
                     path: str = "",
                     extraction_confidence: float = 1.0,
+                    experience: Optional[ExperienceEstimate] = None,
                     config: Optional[ScoringConfig] = None) -> CandidateScore:
-    """Compute an explainable CandidateScore for one resume."""
+    """Compute an explainable CandidateScore for one resume.
+
+    `experience` is optional and only consulted when the JD actually states a
+    minimum. Omitting it, or passing one whose years could not be determined,
+    leaves the 0-100 scale intact across skills alone — the candidate is never
+    docked for a resume we failed to parse.
+    """
     cfg = config or ScoringConfig()
 
     mand = [a for a in assessments if a.importance == Importance.MANDATORY]
     pref = [a for a in assessments if a.importance == Importance.PREFERRED]
+
+    # The experience bucket exists only if the JD asked for years AND we could
+    # read them. Either missing, and its weight is never carved out, so the
+    # remaining components still span the full 0-100 and scores stay comparable
+    # across candidates in the same run.
+    required = requirements.min_years_experience
+    use_exp = bool(required) and experience is not None and experience.known
+    w_exp = cfg.w_experience if use_exp else 0.0
+    skill_scale = (100.0 - w_exp) / 100.0
 
     # If the JD has no preferred skills, its weight folds into mandatory so the
     # scale stays 0-100 rather than topping out at 70.
@@ -78,6 +126,8 @@ def score_candidate(requirements: Requirements,
     elif not mand and pref:
         w_pref += w_mand
         w_mand = 0.0
+    w_mand *= skill_scale
+    w_pref *= skill_scale
 
     m_earned, m_poss, m_detail = _bucket(mand, w_mand)
     p_earned, p_poss, p_detail = _bucket(pref, w_pref)
@@ -86,7 +136,15 @@ def score_candidate(requirements: Requirements,
         ScoreComponent("Mandatory skills", m_earned, m_poss, m_detail),
         ScoreComponent("Preferred skills", p_earned, p_poss, p_detail),
     ]
-    score = round(m_earned + p_earned, 1)
+    score = m_earned + p_earned
+
+    if use_exp:
+        e_earned, e_poss, e_detail = _experience_bucket(
+            float(required), experience, w_exp, cfg.experience_tolerance)
+        components.append(
+            ScoreComponent("Years of experience", e_earned, e_poss, e_detail))
+        score += e_earned
+    score = round(score, 1)
 
     # matched vs missing/weak, in the language the brief asks for.
     matched = [a.skill for a in assessments if a.depth != Depth.NONE]
@@ -96,10 +154,21 @@ def score_candidate(requirements: Requirements,
            for a in mand if a.depth == Depth.MENTIONED]
     )
 
+    if use_exp and experience.years + cfg.experience_tolerance < float(required):
+        missing_or_weak.append(
+            f"{experience.years:g} years experience "
+            f"({required:g} required)")
+
     flags: List[str] = []
     missing_mand = [a.skill for a in mand if a.depth == Depth.NONE]
     if missing_mand:
         flags.append("missing required skill(s): " + ", ".join(missing_mand))
+    if required and (experience is None or not experience.known):
+        flags.append(
+            f"JD requires {required:g}+ years but no dates could be read from "
+            f"the resume — experience not scored, review manually")
+    if experience is not None:
+        flags.extend(experience.warnings if experience.known else [])
     if extraction_confidence < cfg.low_extraction_conf:
         flags.append(f"low extraction confidence ({extraction_confidence:.2f}) "
                      f"— recommend manual review of the source resume")
@@ -110,15 +179,18 @@ def score_candidate(requirements: Requirements,
         flags.append("low-confidence judgement(s): " + ", ".join(low_conf))
 
     return CandidateScore(
-        path=path, score=score, summary=_summarise(requirements, mand, pref, score),
+        path=path, score=score,
+        summary=_summarise(requirements, mand, pref, score, experience),
         matched_skills=matched, missing_or_weak=missing_or_weak,
         components=components, assessments=assessments,
-        extraction_confidence=extraction_confidence, flags=flags,
+        extraction_confidence=extraction_confidence, experience=experience,
+        flags=flags,
     )
 
 
 def _summarise(req: Requirements, mand: List[SkillAssessment],
-               pref: List[SkillAssessment], score: float) -> str:
+               pref: List[SkillAssessment], score: float,
+               experience: Optional[ExperienceEstimate] = None) -> str:
     """Deterministic one-line summary — no extra LLM call, fully reproducible.
 
     Templated rather than model-generated on purpose: the summary must never
@@ -139,6 +211,14 @@ def _summarise(req: Requirements, mand: List[SkillAssessment],
                      + (f" ({strong} strongly)" if strong else "") + ".")
     if pref:
         parts.append(f"{p_shown}/{len(pref)} preferred demonstrated.")
+    if experience is not None and experience.known:
+        if req.min_years_experience:
+            verb = ("meets" if experience.years + 0.5 >= req.min_years_experience
+                    else "below")
+            parts.append(f"{experience.years:g} years experience "
+                         f"({verb} the {req.min_years_experience:g}-year bar).")
+        else:
+            parts.append(f"{experience.years:g} years experience.")
     missing = [a.skill for a in mand if a.depth == Depth.NONE]
     if missing:
         parts.append("Missing: " + ", ".join(missing) + ".")

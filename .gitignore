@@ -7,3 +7,4 @@ venv/
 OCR/fixtures/
 *.egg-info/
 .DS_Store
+.vscode/

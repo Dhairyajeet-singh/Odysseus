@@ -130,6 +130,59 @@ class ScoreComponent:
         return asdict(self)
 
 
+"""Experience types.
+
+These live in the schema rather than beside the parser that fills them, for the
+same reason SkillAssessment does: they are part of the contract a CandidateScore
+serialises, and putting them here keeps the dependency arrow pointing one way
+(Ranker -> Parser, never back).
+"""
+
+
+@dataclass
+class DateRange:
+    """One employment interval, as inclusive month indices."""
+
+    start_month: int          # year * 12 + month
+    end_month: int
+    is_current: bool
+    raw: str
+
+    @property
+    def months(self) -> int:
+        return max(0, self.end_month - self.start_month)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {**asdict(self), "months": self.months,
+                "years": round(self.months / 12.0, 2)}
+
+
+@dataclass
+class ExperienceEstimate:
+    """How much professional experience the resume evidences, and how we know."""
+
+    years: Optional[float] = None      # None == could not determine (not zero)
+    method: str = "none"               # "date-ranges" | "claimed" | "none"
+    ranges: List[DateRange] = field(default_factory=list)
+    claimed_years: Optional[float] = None
+    evidence: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    @property
+    def known(self) -> bool:
+        return self.years is not None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "years": self.years,
+            "method": self.method,
+            "claimed_years": self.claimed_years,
+            "ranges": [r.to_dict() for r in self.ranges],
+            "evidence": self.evidence,
+            "warnings": self.warnings,
+        }
+
+
 @dataclass
 class CandidateScore:
     """The full, explainable result for one candidate."""
@@ -142,6 +195,7 @@ class CandidateScore:
     components: List[ScoreComponent] = field(default_factory=list)
     assessments: List[SkillAssessment] = field(default_factory=list)
     extraction_confidence: float = 1.0   # carried from stage 1
+    experience: Optional[ExperienceEstimate] = None
     flags: List[str] = field(default_factory=list)
 
     @property
@@ -171,5 +225,6 @@ class CandidateScore:
             "components": [c.to_dict() for c in self.components],
             "assessments": [a.to_dict() for a in self.assessments],
             "extraction_confidence": round(self.extraction_confidence, 3),
+            "experience": self.experience.to_dict() if self.experience else None,
             "flags": self.flags,
         }

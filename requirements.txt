@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# Resume Screening & Ranking — runtime and test dependencies
+#
+#   Windows:        py -m venv .venv && .venv\Scripts\activate
+#   macOS / Linux:  python3 -m venv .venv && source .venv/bin/activate
+#
+#   pip install -r requirements.txt
+#
+# One dependency is NOT installable with pip — the tesseract binary. See the
+# note at the bottom of this file. Everything except the OCR fallback path
+# works without it.
+# ---------------------------------------------------------------------------
+
+# --- Stage 1: document extraction ------------------------------------------
+PyMuPDF>=1.24          # native PDF text layer, block geometry, rasterisation
+pdfplumber>=0.11       # ruled-table extraction
+python-docx>=1.1       # DOCX body, tables, text boxes, headers, hyperlinks
+pytesseract>=0.3.10    # OCR fallback — wraps the tesseract binary
+Pillow>=10.0           # image handling on the OCR path
+
+# --- Stage 2: retrieval ----------------------------------------------------
+numpy>=1.24            # embedding matrices and BM25 score vectors
+
+# --- Stage 2: LLM and embedding backend ------------------------------------
+openai>=1.30           # OpenAIProvider and OpenAIEmbedder — the default backend
+
+# --- Tests -----------------------------------------------------------------
+pytest>=8.0
+reportlab>=4.0         # generates the synthetic fixtures; not used at runtime
+
+# --- Optional, uncomment if you want them ----------------------------------
+# anthropic>=0.30            # AnthropicProvider — the second LLM provider
+# sentence-transformers>=3.0 # local, free embeddings instead of the OpenAI API
+#                            # (pulls in torch — roughly 2 GB)
+
+# ---------------------------------------------------------------------------
+# tesseract binary — required only for the OCR fallback path
+#
+#   Windows   https://github.com/UB-Mannheim/tesseract/wiki
+#             Installs to C:\Program Files\Tesseract-OCR\tesseract.exe
+#             Tick "Add to PATH" in the installer, or set it in code:
+#                 pytesseract.pytesseract.tesseract_cmd = \
+#                     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+#   macOS     brew install tesseract
+#   Debian    sudo apt-get install tesseract-ocr
+#
+#   Verify:   python -c "import pytesseract; print(pytesseract.get_tesseract_version())"
+#
+# No poppler is required — PyMuPDF rasterises in-process.
+# ---------------------------------------------------------------------------
