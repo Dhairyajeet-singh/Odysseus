@@ -1,0 +1,23 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.vscode
+.qodo
+
+# Rebuilt inside the image
+Frontend/node_modules
+Frontend/dist
+
+# Screening output: candidate personal data, never ship it
+Results
+Excel/Excel_Outputs
+
+# Secrets come from Railway variables, not from a file in the image
+.env
+
+# Generated at test time
+OCR/fixtures
