@@ -7,7 +7,7 @@ PDF, two-column layout, scanned image, or DOCX — works out how well each
 candidate matches, and produces a ranked list where every score breaks down into
 the evidence that produced it.
 
-#**Deployed Version:[odysseus-production-f505.up.railway.app]**
+#**Deployed Version: odysseus-production-f505.up.railway.app**
 ```
 #1  93/100   aarav_mehta.pdf
     Strong match. 5/6 required skills demonstrated (5 strongly). 5/5 preferred demonstrated.
@@ -46,7 +46,7 @@ grades those twenty synthetic resumes for the ranking-quality metrics below.
 Swap the resumes and those particular numbers stop applying — the pipeline
 itself is unaffected.
 
-There is also a #**Deployed Version:[odysseus-production-f505.up.railway.app]** if you would
+There is also a #**Deployed Version: odysseus-production-f505.up.railway.app** if you would
 rather click than clone.
 
 ---
